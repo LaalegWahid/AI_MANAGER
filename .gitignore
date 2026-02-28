@@ -1,0 +1,39 @@
+# ========================
+# Terraform
+# ========================
+.rds-terraform/
+.terraform.lock.hcl
+*.tfstate
+*.txt
+*.csv
+*.tfstate.backup
+*.tfvars
+override.tf
+override.tf.json
+crash.log
+crash.*.log
+
+# ========================
+# Database / Node
+# ========================
+node_modules/
+.env
+.env.local
+.env.production
+
+# ========================
+# Drizzle
+# ========================
+drizzle/
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
