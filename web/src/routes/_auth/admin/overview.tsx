@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import type { DashboardStats } from '@/lib/api'
-import { adminApi } from '@/lib/api'
+import { adminApi, type DashboardStats } from '../../../lib/api'
+
 
 export const Route = createFileRoute('/_auth/admin/overview')({
 	component: OverviewPage,
