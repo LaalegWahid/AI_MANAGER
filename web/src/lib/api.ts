@@ -1,4 +1,4 @@
-import { env } from "./env"
+import { env } from '@celed/env/web'
 
 const BASE = env.VITE_API_URL
 

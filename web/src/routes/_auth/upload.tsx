@@ -9,7 +9,8 @@ import {
 import { toast } from 'sonner'
 import { signOut, useSession } from '../../lib/auth-client'
 import { type DocumentRecord, uploadApi } from '../../lib/api'
-import { chatDriver } from '../../lib/ChatDriver'
+import { chatDriver, type ChatResponse } from '../../lib/ChatDriver'
+import { deleteDocument } from '../../lib/delete'
 
 export const Route = createFileRoute('/_auth/upload')({
 	component: UploadPage,
@@ -124,150 +125,212 @@ function DropZone({
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
-function ChatBox() {
-	const [messages, setMessages] = useState<
-		{ role: 'user' | 'assistant'; content: string; id: number }[]
-	>([])
-	const [input, setInput] = useState('')
-	const [loading, setLoading] = useState(false)
-	const bottomRef = useRef<HTMLDivElement>(null)
-	const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional scroll trigger
-	useEffect(() => {
-		bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [messages, loading])
 
-	const handleSend = async () => {
-		if (!input.trim() || loading) return
 
-		const userMessage = { role: 'user' as const, content: input.trim(), id: Date.now() }
-		setMessages((prev) => [...prev, userMessage])
-		setInput('')
+function extractFileName(uri: string) {
+  return uri.split("/").pop() ?? uri
+}
 
-		if (textareaRef.current) textareaRef.current.style.height = 'auto'
+type Message = {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  sources?: string[]
+  references?: string[]
+}
 
-		setLoading(true)
-		try {
-			const response = await chatDriver(userMessage.content)
-			setMessages((prev) => [
-				...prev,
-				{ role: 'assistant', content: response, id: Date.now() },
-			])
-		} finally {
-			setLoading(false)
-		}
-	}
 
-	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault()
-			handleSend()
-		}
-	}
+export function ChatBox() {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
 
-	const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-		const t = e.target as HTMLTextAreaElement
-		t.style.height = 'auto'
-		t.style.height = `${Math.min(t.scrollHeight, 128)}px`
-	}
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-	return (
-		<div className="flex h-[600px] flex-col border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-sm">
-			{/* Header */}
-			<div className="px-5 py-3 border-b border-zinc-200 bg-zinc-50/80 flex items-center justify-between">
-				<h3 className="text-[14px] font-medium text-zinc-900">Query Assistant</h3>
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, loading])
 
-			</div>
+  const handleSend = async () => {
+    if (!input.trim() || loading) return
 
-			{/* Transcript */}
-			<div className="flex-1 overflow-y-auto bg-white p-5">
-				{messages.length === 0 ? (
-					<div className="flex h-full flex-col items-center justify-center text-center">
-						<div className="w-12 h-12 rounded-xl bg-zinc-100 flex items-center justify-center mb-4">
-							<svg className="w-6 h-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-							</svg>
-						</div>
-						<p className="text-[16px] font-medium text-zinc-900 leading-tight">
-							Ask anything.
-						</p>
-						<p className="mt-1 text-[14px] text-zinc-500 max-w-[200px]">
-							Your documents are ready to be queried and analyzed.
-						</p>
-					</div>
-				) : (
-					<div className="space-y-6">
-						{messages.map((msg) => (
-							<div
-								key={msg.id}
-								className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
-							>
-								<span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5 px-1">
-									{msg.role === 'user' ? 'You' : 'Assistant'}
-								</span>
-								<div className={`px-4 py-3 rounded-2xl max-w-[90%] ${msg.role === 'user'
-									? 'bg-zinc-900 text-white rounded-tr-sm'
-									: 'bg-zinc-100 text-zinc-900 rounded-tl-sm'
-									}`}
-								>
-									<p className="text-[14px] leading-relaxed whitespace-pre-wrap">
-										{msg.content}
-									</p>
-								</div>
-							</div>
-						))}
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: input.trim(),
+    }
 
-						{loading && (
-							<div className="flex flex-col items-start">
-								<span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5 px-1">
-									Assistant
-								</span>
-								<div className="px-4 py-3.5 rounded-2xl max-w-[90%] bg-zinc-100 text-zinc-900 rounded-tl-sm flex items-center gap-2">
-									<div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-									<div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-									<div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"></div>
-								</div>
-							</div>
-						)}
-					</div>
-				)}
-				<div ref={bottomRef} />
-			</div>
+    setMessages((prev) => [...prev, userMessage])
+    setInput("")
+    if (textareaRef.current) textareaRef.current.style.height = "auto"
 
-			{/* Input row */}
-			<div className="border-t border-zinc-200 p-3 bg-zinc-50/50">
-				<div className="relative flex items-end gap-3 bg-white border border-zinc-300 rounded-xl px-4 py-3 shadow-sm focus-within:ring-1 focus-within:ring-zinc-400 focus-within:border-zinc-400 transition-shadow">
-					<textarea
-						ref={textareaRef}
-						value={input}
-						onChange={(e) => setInput(e.target.value)}
-						onKeyDown={handleKeyDown}
-						onInput={handleInput}
-						placeholder="Message assistant..."
-						rows={1}
-						className="flex-1 resize-none bg-transparent text-[14px] text-zinc-900 placeholder:text-zinc-400 focus:outline-none py-0.5"
-						style={{ height: 'auto', maxHeight: '128px' }}
-					/>
-					<button
-						type="button"
-						onClick={handleSend}
-						disabled={loading || !input.trim()}
-						className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-40 disabled:bg-zinc-300 disabled:text-zinc-500 transition-colors"
-						aria-label="Send message"
-					>
-						{loading ? (
-							<Spinner />
-						) : (
-							<svg className="w-4 h-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-							</svg>
-						)}
-					</button>
-				</div>
-			</div>
-		</div>
-	)
+    setLoading(true)
+
+    try {
+      const data: ChatResponse = await chatDriver(userMessage.content)
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.answer,
+        sources: data.sources,
+        references: data.references,
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "Something went wrong while retrieving the answer.",
+        },
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const t = e.target as HTMLTextAreaElement
+    t.style.height = "auto"
+    t.style.height = `${Math.min(t.scrollHeight, 128)}px`
+  }
+
+  return (
+    <div className="flex h-[600px] flex-col border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-sm relative">
+      {/* Header */}
+      <div className="px-5 py-3 border-b border-zinc-200 bg-zinc-50/80">
+        <h3 className="text-[14px] font-medium text-zinc-900">Query Assistant</h3>
+      </div>
+
+      {/* Transcript */}
+      <div className="flex-1 overflow-y-auto bg-white p-5">
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <p className="text-[16px] font-medium text-zinc-900">Ask anything.</p>
+            <p className="mt-1 text-[14px] text-zinc-500 max-w-[220px]">
+              Your documents are ready to be queried and analyzed.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${
+                  msg.role === "user" ? "items-end" : "items-start"
+                }`}
+              >
+                <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5 px-1">
+                  {msg.role === "user" ? "You" : "Assistant"}
+                </span>
+
+                <div
+                  className={`px-4 py-3 rounded-2xl max-w-[90%] ${
+                    msg.role === "user"
+                      ? "bg-zinc-900 text-white rounded-tr-sm"
+                      : "bg-zinc-100 text-zinc-900 rounded-tl-sm"
+                  }`}
+                >
+                  <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
+                    {msg.content}
+                  </p>
+
+                  {/* Sources & References Panel */}
+                  {msg.role === "assistant" && (msg.sources || msg.references) && (
+                    <div className="mt-4 border border-zinc-200 rounded-xl bg-white text-zinc-700 text-[12px] p-3 shadow-sm">
+                      {/* Sources */}
+                      {msg.sources && msg.sources.length > 0 && (
+                        <div className="mb-3">
+                          <p className="font-medium text-zinc-500 mb-2 uppercase tracking-wide">
+                            Sources
+                          </p>
+                          <div className="space-y-1">
+                            {msg.sources.map((source) => (
+                              <div
+                                key={source}
+                                className="px-2 py-1 bg-zinc-100 rounded-md truncate"
+                              >
+                                {extractFileName(source)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* References */}
+                     {/* References */}
+{msg.references && msg.references.length > 0 && (
+  <div className="border-t border-zinc-200 pt-2 text-[11px] text-zinc-600 space-y-2">
+    {msg.references.map((ref, i) => (
+      <div key={i} className="flex flex-col">
+        <p className="py-1">{ref}</p>
+        {i < msg.references.length - 1 && <hr className="border-zinc-300" />}
+      </div>
+    ))}
+  </div>
+)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex flex-col items-start">
+                <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5 px-1">
+                  Assistant
+                </span>
+                <div className="px-4 py-3.5 rounded-2xl bg-zinc-100 flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="border-t border-zinc-200 p-3 bg-zinc-50/50">
+        <div className="relative flex items-end gap-3 bg-white border border-zinc-300 rounded-xl px-4 py-3 shadow-sm focus-within:ring-1 focus-within:ring-zinc-400">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onInput={handleInput}
+            placeholder="Message assistant..."
+            rows={1}
+            className="flex-1 resize-none bg-transparent text-[14px] text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
+            style={{ maxHeight: "128px" }}
+          />
+
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={loading || !input.trim()}
+            className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-40 disabled:bg-zinc-300"
+          >
+            →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -302,47 +365,57 @@ function UploadPage() {
 	useEffect(() => {
 		fetchDocuments()
 	}, [fetchDocuments])
-
+const handleDelete = async (fileName: string) => {
+  try {
+    await deleteDocument(fileName);
+    console.log("Deleted:", fileName);
+    fetchDocuments(); // Refresh the document list after deletion
+  } catch (error) {
+    console.error("Delete failed:", error);
+  }
+};
 	const handleUpload = useCallback(async () => {
-		if (!file || !user?.id) return
+	if (!file || !user?.id) return
 
-		setUploading(true)
+	setUploading(true)
+	setUploadProgress(0)
+
+	const interval = setInterval(() => {
+		setUploadProgress((p) => (p < 85 ? p + Math.random() * 12 : p))
+	}, 200)
+
+	try {
+		const { url, fields } = await uploadApi.getPresignedUrl({
+			filename: file.name,
+			contentType: file.type,
+		})
+
+		const formData = new FormData()
+		for (const [k, v] of Object.entries(fields)) formData.append(k, v)
+		formData.append('file', file)
+
+		const res = await fetch(url, { method: 'POST', body: formData })
+		if (!res.ok) throw new Error(`Upload failed with status ${res.status}`)
+
+		clearInterval(interval)
+		setUploadProgress(100)
+
+		// 🔥 Wait 20 seconds before finishing
+		await new Promise((resolve) => setTimeout(resolve, 20000))
+
+		toast.success('Document processed')
+		setFile(null)
 		setUploadProgress(0)
+		fetchDocuments()
 
-		const interval = setInterval(() => {
-			setUploadProgress((p) => (p < 85 ? p + Math.random() * 12 : p))
-		}, 200)
-
-		try {
-			const { url, fields } = await uploadApi.getPresignedUrl({
-				filename: file.name,
-				contentType: file.type,
-			})
-
-			const formData = new FormData()
-			for (const [k, v] of Object.entries(fields)) formData.append(k, v)
-			formData.append('file', file)
-
-			const res = await fetch(url, { method: 'POST', body: formData })
-			if (!res.ok) throw new Error(`Upload failed with status ${res.status}`)
-
-			clearInterval(interval)
-			setUploadProgress(100)
-
-			setTimeout(() => {
-				toast.success('Document processed')
-				setFile(null)
-				setUploadProgress(0)
-				fetchDocuments()
-			}, 500)
-		} catch (err) {
-			clearInterval(interval)
-			setUploadProgress(0)
-			toast.error(err instanceof Error ? err.message : 'Upload failed')
-		} finally {
-			setUploading(false)
-		}
-	}, [file, user?.id, fetchDocuments])
+		setUploading(false) // moved here
+	} catch (err) {
+		clearInterval(interval)
+		setUploadProgress(0)
+		toast.error(err instanceof Error ? err.message : 'Upload failed')
+		setUploading(false)
+	}
+}, [file, user?.id, fetchDocuments])
 
 	if (!user) return null
 
@@ -358,7 +431,7 @@ function UploadPage() {
 			<header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-md">
 				<div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
 					<div className="flex items-center gap-8">
-						<span className="text-xl font-semibold tracking-tight text-zinc-950">CELED.</span>
+						<span className="text-xl font-semibold tracking-tight text-zinc-950">AI_Trainer</span>
 					</div>
 
 					<div className="flex items-center gap-6">
@@ -475,33 +548,60 @@ function UploadPage() {
 								</div>
 							) : (
 								<div className="border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-sm">
-									<div className="divide-y divide-zinc-200">
-										{documents.map((doc) => (
-											<div
-												key={doc.key}
-												className="flex items-center gap-4 p-4 hover:bg-zinc-50 transition-colors"
-											>
-												<div className="w-8 h-8 rounded bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
-													<svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-													</svg>
-												</div>
-												<div className="min-w-0 flex-1">
-													<p className="truncate text-[14px] font-medium text-zinc-900">{doc.filename}</p>
-													<div className="mt-1 flex items-center gap-2">
-														<span className="text-[12px] text-zinc-500">
-															{formatFileSize(doc.size)}
-														</span>
-														<span className="text-[12px] text-zinc-300">•</span>
-														<span className="text-[12px] text-zinc-500">
-															{formatDate(doc.lastModified)}
-														</span>
-													</div>
-												</div>
-											</div>
-										))}
-									</div>
-								</div>
+  <div className="divide-y divide-zinc-200">
+    {documents.map((doc) => (
+      <div
+        key={doc.key}
+        className="flex items-center gap-4 p-4 hover:bg-zinc-50 transition-colors"
+      >
+        <div className="w-8 h-8 rounded bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+          <svg
+            className="w-4 h-4 text-red-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-medium text-zinc-900">{doc.filename}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-[12px] text-zinc-500">{formatFileSize(doc.size)}</span>
+            <span className="text-[12px] text-zinc-300">•</span>
+            <span className="text-[12px] text-zinc-500">{formatDate(doc.lastModified)}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            handleDelete(doc.filename)
+          }}
+          className="w-8 h-8 rounded bg-red-50 border border-red-100 flex items-center justify-center shrink-0 hover:bg-red-100 transition"
+        >
+          <svg
+            className="w-4 h-4 text-red-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4m-4 0a1 1 0 00-1 1v1h6V4a1 1 0 00-1-1m-4 0h4"
+            />
+          </svg>
+        </button>
+      </div>
+    ))}
+  </div>
+</div>
 							)}
 						</section>
 					</div>

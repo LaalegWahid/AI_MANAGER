@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-
-import { adminApi, type UserRecord } from '../../../lib/api'
-import { useSession } from '../../../lib/auth-client'
+import type { UserRecord } from '@/lib/api'
+import { adminApi } from '@/lib/api'
+import { useSession } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_auth/admin/admins')({
 	component: AdminsPage,

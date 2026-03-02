@@ -1,27 +1,38 @@
-import { env } from "./env"
+import { env } from '@celed/env/web'
 
-/**
- * Send a message to the customer's Bedrock Knowledge Base via the session-authenticated chat endpoint.
- */
-export const chatDriver = async (input: string): Promise<string> => {
+export type ChatResponse = {
+  answer: string
+  sources: string[]
+  references: string[]
+}
+
+
+
+export const chatDriver = async (input: string): Promise<ChatResponse> => {
   try {
     const response = await fetch(`${env.VITE_API_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include', // required — sends session cookie for auth
+      credentials: 'include',
       body: JSON.stringify({ message: input }),
     })
 
     const data = await response.json()
+    console.log('chatDriver parsed response:', data)
 
     if (!response.ok) {
       throw new Error(data.error || `API error ${response.status}`)
     }
 
-    return data.reply as string
+    return {
+      answer: data.reply ?? '',
+      sources: Array.isArray(data.sources) ? data.sources : [],
+      references: Array.isArray(data.references) ? data.references : [],
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error('chatDriver error:', message)
-    return `Error: ${message}`
+
+    return { answer: `Error: ${message}`, sources: [], references: [] }
   }
 }

@@ -46,7 +46,7 @@ function LoginPage() {
 			<div className="hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between bg-[#0a0a0a] p-12 lg:p-16 xl:p-24 border-r border-zinc-800">
 				<div className="flex flex-col h-full justify-between max-w-lg">
 					<div>
-						<span className="text-xl font-semibold tracking-tight text-white">CELED.</span>
+						<span className="text-xl font-semibold tracking-tight text-white">AI_Trainer</span>
 					</div>
 
 					<div className="space-y-6">
@@ -70,7 +70,7 @@ function LoginPage() {
 				<div className="w-full max-w-[380px] mx-auto">
 					{/* Mobile Brand */}
 					<div className="lg:hidden mb-12">
-						<span className="text-2xl font-semibold tracking-tight text-zinc-950">CELED.</span>
+						<span className="text-2xl font-semibold tracking-tight text-zinc-950">AI_Trainer</span>
 					</div>
 
 					<div className="mb-10">

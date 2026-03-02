@@ -51,7 +51,7 @@ function DashboardPage() {
 			<header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur-md">
 				<div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
 					<div className="flex items-center gap-8">
-						<span className="text-xl font-semibold tracking-tight text-zinc-950">CELED.</span>
+						<span className="text-xl font-semibold tracking-tight text-zinc-950">AI_Trainer</span>
 					</div>
 
 					<div className="flex items-center gap-6">
