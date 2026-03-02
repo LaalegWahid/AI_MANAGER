@@ -1,4 +1,4 @@
-import { env } from '@celed/env/web'
+import { env } from '../lib/env'
 
 export async function deleteDocument(filename: string): Promise<void> {
   if (!filename) {
