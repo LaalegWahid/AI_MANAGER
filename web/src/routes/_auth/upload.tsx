@@ -276,7 +276,7 @@ export function ChatBox() {
     {msg.references.map((ref, i) => (
       <div key={i} className="flex flex-col">
         <p className="py-1">{ref}</p>
-        {i < msg.references.length - 1 && <hr className="border-zinc-300" />}
+        {i < (msg.references?.length ?? 0) - 1 && <hr className="border-zinc-300" />}
       </div>
     ))}
   </div>
