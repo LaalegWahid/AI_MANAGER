@@ -76,6 +76,9 @@ export const uploadApi = {
 		}),
 
 	listDocuments: () => request<DocumentRecord[]>('/upload/documents'),
+
+	getKnowledgeBase: () =>
+		request<{ knowledgeBaseId: string | null }>('/upload/knowledge-base'),
 }
 
 //  API Keys 

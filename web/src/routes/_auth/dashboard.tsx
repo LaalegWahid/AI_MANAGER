@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { signOut, useSession } from '../../lib/auth-client'
-import { apiKeyApi, type ApiKeyRecord } from '../../lib/api'
+import { apiKeyApi, type ApiKeyRecord, uploadApi } from '../../lib/api'
 
 export const Route = createFileRoute('/_auth/dashboard')({
 	component: DashboardPage,
@@ -30,6 +30,18 @@ function DashboardPage() {
 	const navigate = useNavigate()
 	const { data: session } = useSession()
 	const user = session?.user
+	const [knowledgeBaseId, setKnowledgeBaseId] = useState<string | null>(null)
+	const [kbLoading, setKbLoading] = useState(false)
+
+	useEffect(() => {
+		if (user?.role !== 'user') return
+		setKbLoading(true)
+		uploadApi
+			.getKnowledgeBase()
+			.then((res) => setKnowledgeBaseId(res.knowledgeBaseId))
+			.catch(() => toast.error('Failed to load knowledge base'))
+			.finally(() => setKbLoading(false))
+	}, [user?.role])
 
 	if (!user) return null
 
@@ -97,12 +109,31 @@ function DashboardPage() {
 								<p className="text-[14px] text-zinc-500 mt-1">{user.email}</p>
 							</div>
 						</div>
-						<div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-zinc-50/50">
+						<div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 border-b border-zinc-200">
 							<div>
 								<h3 className="text-[15px] font-medium text-zinc-900">Role</h3>
 								<p className="text-[14px] text-zinc-500 mt-1 capitalize">{user.role}</p>
 							</div>
 						</div>
+						{user.role === 'user' && (
+							<div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 bg-zinc-50/50">
+								<div className="min-w-0">
+									<h3 className="text-[15px] font-medium text-zinc-900">Knowledge Base</h3>
+									{kbLoading ? (
+										<p className="text-[14px] text-zinc-500 mt-1 flex items-center gap-2">
+											<Spinner />
+											<span>Loading...</span>
+										</p>
+									) : knowledgeBaseId ? (
+										<p className="font-mono text-[13px] text-zinc-600 mt-1 break-all">
+											{knowledgeBaseId}
+										</p>
+									) : (
+										<p className="text-[14px] text-zinc-400 mt-1">Not provisioned</p>
+									)}
+								</div>
+							</div>
+						)}
 					</div>
 				</section>
 
